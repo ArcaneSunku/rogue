@@ -3,7 +3,9 @@ package dev.atomix.screens;
 import com.badlogic.gdx.graphics.Texture;
 
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import dev.atomix.Assets;
+import dev.atomix.level.Map;
 
 public class GameScreen extends ScreenImpl {
 
@@ -12,6 +14,7 @@ public class GameScreen extends ScreenImpl {
     }
 
     private SpriteBatch batch = null;
+    private Map map;
 
     @Override
     public void show() {
@@ -19,12 +22,21 @@ public class GameScreen extends ScreenImpl {
         finishLoading();
 
         if(batch == null) batch = new SpriteBatch();
+
+        Texture atlas = get("tiles", Texture.class);
+
+        TextureRegion empty, floor, wall;
+        empty = new TextureRegion(atlas, 0,  0, 16, 16);
+        floor = new TextureRegion(atlas, 0, 16, 16, 16);
+        wall = new TextureRegion(atlas, 16, 16, 16, 16);
+
+        map = new Map(640 / 16, 480 / 16, wall, empty, floor);
     }
 
     @Override
     public void render(float delta) {
         batch.begin();
-
+        map.render(batch, 16);
         batch.end();
     }
 
