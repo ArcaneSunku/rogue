@@ -74,10 +74,12 @@ public class Map {
         // Phase 2: Create rooms in a pseudo-random fashion
         Future<List<Room>> roomsFuture = executor.submit(() -> {
             List<Room> rooms = new ArrayList<>();
-            int roomCount = ThreadLocalRandom.current().nextInt(8, 15);
+            int roomCount = ThreadLocalRandom.current().nextInt(5, 11);
             for (int i = 0; i < roomCount; i++) {
                 Room room = createRoom();
-                if (room != null && !isTooCloseToExistingRooms(room, rooms)) {
+                if(room == null) continue;
+
+                if (!isTooCloseToExistingRooms(room, rooms)) {
                     carveRoom(room);
                     rooms.add(room);
                 }
@@ -117,11 +119,9 @@ public class Map {
     }
 
     private void fillWithNoneTiles() {
-        for (int x = 0; x < m_Width; ++x) {
-            for (int y = 0; y < m_Height; ++y) {
+        for (int x = 0; x < m_Width; ++x)
+            for (int y = 0; y < m_Height; ++y)
                 m_Tiles[x][y] = TileType.NONE; // Start with all empty tiles
-            }
-        }
     }
 
     private Room createRoom() {
@@ -138,8 +138,8 @@ public class Map {
     }
 
     private Room createRectangularRoom() {
-        int roomWidth = ThreadLocalRandom.current().nextInt(3, 8); // Room width between 3 and 8
-        int roomHeight = ThreadLocalRandom.current().nextInt(3, 8); // Room height between 3 and 8
+        int roomWidth = ThreadLocalRandom.current().nextInt(4, 10); // Room width between 3 and 8
+        int roomHeight = ThreadLocalRandom.current().nextInt(4, 10); // Room height between 3 and 8
         int roomX = ThreadLocalRandom.current().nextInt(1, m_Width - roomWidth - 1); // Ensure room fits in map
         int roomY = ThreadLocalRandom.current().nextInt(1, m_Height - roomHeight - 1);
 
@@ -162,7 +162,7 @@ public class Map {
 
     private Room createPolygonRoom() {
         // Randomly decide the number of vertices for the polygon (between 3 and 8)
-        int vertexCount = ThreadLocalRandom.current().nextInt(3, 9);
+        int vertexCount = ThreadLocalRandom.current().nextInt(3, 8);
         List<Point> vertices = new ArrayList<>();
 
         // Generate random angles and distances to create the polygon shape
@@ -194,11 +194,9 @@ public class Map {
     }
 
     private boolean isTooCloseToExistingRooms(Room newRoom, List<Room> existingRooms) {
-        for (Room room : existingRooms) {
-            if (newRoom.intersects(room)) {
-                return true; // Rooms are too close
-            }
-        }
+        for (Room room : existingRooms)
+            if (newRoom.intersects(room)) return true; // Rooms are too close
+
         return false; // No overlap with existing rooms
     }
 
@@ -220,7 +218,7 @@ public class Map {
     }
 
     private void connectRooms(List<Room> rooms) {
-        try(ExecutorService executor = Executors.newFixedThreadPool(rooms.size() * 2)) {
+        try(ExecutorService executor = Executors.newFixedThreadPool(rooms.size())) {
             List<Future<Boolean>> futures = new ArrayList<>();
             List<Room> connectedRooms = new ArrayList<>();
             connectedRooms.add(rooms.get(0)); // Start with the first room
@@ -228,14 +226,17 @@ public class Map {
             // Connect rooms one by one ensuring all are connected
             for (int i = 1; i < rooms.size(); i++) {
                 Room currRoom = rooms.get(i);
-                Room prevRoom = findRoomToConnect(currRoom, connectedRooms);
+                if(currRoom.connections >= Room.MAX_CONNECTIONS) continue;
 
-                if(prevRoom != null) {
-                    carveCorridorWithAStar(prevRoom, currRoom);
-                    connectedRooms.add(currRoom);
-                    prevRoom.connections++;
-                    currRoom.connections++;
-                }
+                Room prevRoom = findRoomToConnect(currRoom, connectedRooms);
+                if(prevRoom == null) continue;
+                if(prevRoom.connections >= Room.MAX_CONNECTIONS) continue;
+
+                carveCorridorWithAStar(prevRoom, currRoom);
+                connectedRooms.add(currRoom);
+
+                prevRoom.connections++;
+                currRoom.connections++;
 
                 // Check connectivity in a separate thread
                 futures.add(executor.submit(() -> areAllRoomsConnected(rooms)));
@@ -243,15 +244,20 @@ public class Map {
 
             // Optionally connect rooms randomly for more interconnectivity
             for (Room roomA : connectedRooms) {
+                if(roomA.connections >= Room.MAX_CONNECTIONS) continue;
+
                 for (Room roomB : connectedRooms) {
-                    if (roomA != roomB && roomA.connections < 2 && roomB.connections < 2) {
+                    if(roomB.connections >= Room.MAX_CONNECTIONS) continue;
+
+                    if (roomA != roomB) {
                         carveCorridorWithAStar(roomA, roomB);
+
                         roomA.connections++;
                         roomB.connections++;
-                    }
 
-                    // Check connectivity in a separate thread
-                    futures.add(executor.submit(() -> areAllRoomsConnected(rooms)));
+                        // Check connectivity in a separate thread
+                        futures.add(executor.submit(() -> areAllRoomsConnected(rooms)));
+                    }
                 }
             }
 
@@ -272,10 +278,10 @@ public class Map {
 
     private Room findRoomToConnect(Room currRoom, List<Room> connectedRooms) {
         for (Room prevRoom : connectedRooms) {
-            if (prevRoom.connections < 2) {
-                return prevRoom; // Found a room that can connect
-            }
+            if(currRoom == prevRoom) continue;
+            if (prevRoom.connections < Room.MAX_CONNECTIONS) return prevRoom;
         }
+
         return null; // No suitable room found
     }
 
@@ -284,10 +290,9 @@ public class Map {
 
         for (Room room : rooms) {
             Node goal = new Node(room.x + room.width / 2, room.y + room.height / 2);
-            if (aStar(start, goal).isEmpty()) {
-                return false;
-            }
+            if (aStar(start, goal).isEmpty()) return false;
         }
+
         return true;
     }
 
@@ -404,6 +409,8 @@ public class Map {
 
     // Room class to define room properties and behavior
     private static class Room {
+        static final int MAX_CONNECTIONS = 2;
+
         int x, y, width, height;
         int connections;
 

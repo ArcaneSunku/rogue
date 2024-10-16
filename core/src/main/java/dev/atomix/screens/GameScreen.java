@@ -1,5 +1,6 @@
 package dev.atomix.screens;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -30,7 +31,7 @@ public class GameScreen extends ScreenImpl {
         floor = new TextureRegion(atlas, 0, 16, 16, 16);
         wall = new TextureRegion(atlas, 16, 16, 16, 16);
 
-        map = new Map(640 / 16, 480 / 16, wall, empty, floor);
+        map = new Map(Gdx.graphics.getWidth() / 8, Gdx.graphics.getHeight() / 8, wall, empty, floor);
     }
 
     @Override
